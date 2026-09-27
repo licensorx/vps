@@ -64,3 +64,12 @@ jobs:
             sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
             sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
             systemctl restart ssh || systemctl restart sshd
+
+            # =========================================================
+            # 7. LAPORAN INSTALASI SELESAI KE PANEL ADMIN
+            # =========================================================
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "x-server-api-key: ${{ github.event.client_payload.webhook_key }}" \
+              -d '{"status":"active"}' \
+              ${{ github.event.client_payload.webhook_install }}
