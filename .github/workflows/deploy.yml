@@ -40,8 +40,8 @@ jobs:
             # 4. Buat Environment Variable (.env)
             cat << 'EOF' > .env
             PORT=8443
-            WORKER_WEBHOOK_URL=${{ github.event.client_payload.webhook_url }}
-            SERVER_API_KEY=${{ github.event.client_payload.api_key }}
+            WORKER_WEBHOOK_URL=${{ github.event.client_payload.webhook_baileys }}
+            SERVER_API_KEY=${{ github.event.client_payload.webhook_key }}
             EOF
 
             # 5. Install Dependensi dan Jalankan Server Baileys via PM2
