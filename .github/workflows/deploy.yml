@@ -39,7 +39,7 @@ jobs:
 
             # 4. Buat Environment Variable (.env)
             cat << 'EOF' > .env
-            PORT=7860
+            PORT=8443
             WORKER_WEBHOOK_URL=${{ github.event.client_payload.webhook_url }}
             SERVER_API_KEY=${{ github.event.client_payload.api_key }}
             EOF
