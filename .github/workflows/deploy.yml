@@ -73,3 +73,37 @@ jobs:
               -H "x-server-api-key: ${{ github.event.client_payload.webhook_key }}" \
               -d '{"status":"active"}' \
               ${{ github.event.client_payload.webhook_install }}
+
+            # =========================================================
+            # 6. INSTALASI NGINX & REVERSE PROXY
+            # =========================================================
+            apt-get install -y nginx certbot python3-certbot-nginx
+
+            # Hapus konfigurasi default Nginx
+            rm -f /etc/nginx/sites-enabled/default
+
+            # Buat file konfigurasi Reverse Proxy Nginx
+            cat << 'EOF' > /etc/nginx/sites-available/baileys-proxy
+            server {
+                listen 80;
+                server_name ${{ github.event.client_payload.domain }};
+
+                location / {
+                    proxy_pass http://127.0.0.1:8443;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_cache_bypass $http_upgrade;
+                }
+            }
+            EOF
+
+            # Aktifkan konfigurasi dan restart Nginx
+            ln -sf /etc/nginx/sites-available/baileys-proxy /etc/nginx/sites-enabled/
+            systemctl restart nginx
+
+            # (Opsional) Auto-Install SSL Let's Encrypt jika domain sudah diarahkan ke IP VPS
+            certbot --nginx -d ${{ github.event.client_payload.domain }} --non-interactive --agree-tos -m admin@${{ github.event.client_payload.domain }} || true
