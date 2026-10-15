@@ -33,7 +33,7 @@ jobs:
             chmod -R 777 /temp
             cd /app/baileys-worker
 
-            # 3. DOWNLOAD SCRIPT UTAMA DARI CLOUDFLARE WORKER ANDA
+            # 3. DOWNLOAD SCRIPT UTAMA DARI CLOUDFLARE WORKER
             curl -sSL "https://future.dioahmadriyadi0.workers.dev/package.json.txt" -o package.json
             curl -sSL "https://future.dioahmadriyadi0.workers.dev/server.js.txt" -o server.js
 
@@ -52,30 +52,7 @@ jobs:
             env PATH=$PATH:/usr/bin pm2 startup systemd -u root --hp /root || true
 
             # =========================================================
-            # 6. PENGAMANAN MUTLAK (CLIENT LOCKDOWN)
-            # =========================================================
-            # Masukkan SSH Public Key Admin agar hanya Anda yang bisa akses kedepan
-            mkdir -p /root/.ssh
-            chmod 700 /root/.ssh
-            echo "${{ secrets.ADMIN_PUBLIC_KEY }}" >> /root/.ssh/authorized_keys
-            chmod 600 /root/.ssh/authorized_keys
-
-            # Matikan total login password SSH agar pemilik VPS (klien) terkunci keluar dan tidak bisa membajak script
-            sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-            sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
-            systemctl restart ssh || systemctl restart sshd
-
-            # =========================================================
-            # 7. LAPORAN INSTALASI SELESAI KE PANEL ADMIN
-            # =========================================================
-            curl -X POST \
-              -H "Content-Type: application/json" \
-              -H "x-server-api-key: ${{ github.event.client_payload.webhook_key }}" \
-              -d '{"status":"active"}' \
-              ${{ github.event.client_payload.webhook_install }}
-
-            # =========================================================
-            # 6. INSTALASI NGINX & REVERSE PROXY
+            # 6. INSTALASI NGINX & REVERSE PROXY SSL
             # =========================================================
             apt-get install -y nginx certbot python3-certbot-nginx
 
@@ -105,5 +82,33 @@ jobs:
             ln -sf /etc/nginx/sites-available/baileys-proxy /etc/nginx/sites-enabled/
             systemctl restart nginx
 
-            # (Opsional) Auto-Install SSL Let's Encrypt jika domain sudah diarahkan ke IP VPS
+            # (Opsional) Auto-Install SSL Let's Encrypt
             certbot --nginx -d ${{ github.event.client_payload.domain }} --non-interactive --agree-tos -m admin@${{ github.event.client_payload.domain }} || true
+
+            # =========================================================
+            # 7. PENGAMANAN MUTLAK (CLIENT LOCKDOWN)
+            # =========================================================
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            
+            # OVERWRITE (>) kunci, BUKAN append (>>), agar kunci klien lama terhapus total
+            echo "${{ secrets.ADMIN_PUBLIC_KEY }}" > /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+            
+            # Hapus akses dari user OS default (ubuntu, dll) jika ada
+            rm -f /home/*/.ssh/authorized_keys || true
+
+            # Matikan total login password SSH
+            sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+            sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+            systemctl restart ssh || systemctl restart sshd
+
+            # =========================================================
+            # 8. LAPORAN INSTALASI SELESAI KE PANEL ADMIN
+            # =========================================================
+            # Webhook diletakkan di akhir agar hanya melapor jika semua langkah di atas sukses
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "x-server-api-key: ${{ github.event.client_payload.webhook_key }}" \
+              -d '{"status":"active"}' \
+              ${{ github.event.client_payload.webhook_install }}
