@@ -82,9 +82,6 @@ jobs:
             ln -sf /etc/nginx/sites-available/baileys-proxy /etc/nginx/sites-enabled/
             systemctl restart nginx
 
-            # (Opsional) Auto-Install SSL Let's Encrypt
-            certbot --nginx -d ${{ github.event.client_payload.domain }} --non-interactive --agree-tos -m admin@${{ github.event.client_payload.domain }} || true
-
             # =========================================================
             # 7. PENGAMANAN MUTLAK (CLIENT LOCKDOWN)
             # =========================================================
